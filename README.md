@@ -1,4 +1,7 @@
 # Algo-itseo
+<p align='center'>
+  <img width="500" alt="스크린샷 2026-06-04 오후 3 47 33" src="https://github.com/user-attachments/assets/8ec15625-3ed7-437b-879c-b38605778a39" />
+</p>
 
 A dedicated dashboard for tracking and analyzing technical interview preparation. Algo-itseo helps you organize your study habits, log coding problems, and visualize your progress over time through an intuitive, retro-inspired interface.
 
