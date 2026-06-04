@@ -31,9 +31,18 @@ async function initDb() {
         title TEXT,
         difficulty TEXT,
         date TEXT,
+        url TEXT,
         FOREIGN KEY(user_id) REFERENCES users(id)
       )
     `);
+    
+    // Add url column if it doesn't exist
+    try {
+      await db.execute("ALTER TABLE solved_problems ADD COLUMN url TEXT");
+    } catch (e) {
+      // Ignore if column already exists
+    }
+    
     console.log("Connected to the Turso/SQLite database and tables verified.");
   } catch (err) {
     console.error("Error creating tables:", err.message);

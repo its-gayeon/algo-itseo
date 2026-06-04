@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import db from "./db.js";
 import path from "path";
 import { fileURLToPath } from "url";
+import https from "https";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -75,11 +76,11 @@ app.post("/api/login", async (req, res) => {
 });
 
 app.post("/api/solved", authenticateToken, async (req, res) => {
-  const { title, difficulty, date } = req.body;
+  const { title, difficulty, date, url } = req.body;
   try {
     const result = await db.execute({
-      sql: "INSERT INTO solved_problems (user_id, title, difficulty, date) VALUES (?, ?, ?, ?)",
-      args: [req.user.id, title, difficulty, date]
+      sql: "INSERT INTO solved_problems (user_id, title, difficulty, date, url) VALUES (?, ?, ?, ?, ?)",
+      args: [req.user.id, title, difficulty, date, url || null]
     });
     res.json({ id: result.lastInsertRowid.toString(), title, difficulty, date });
   } catch (err) {
@@ -105,7 +106,7 @@ app.delete("/api/solved", authenticateToken, async (req, res) => {
 app.get("/api/community", async (req, res) => {
   try {
     const result = await db.execute(`
-      SELECT sp.id, sp.title, sp.difficulty, sp.date, u.username 
+      SELECT sp.id, sp.title, sp.difficulty, sp.date, sp.url, u.username 
       FROM solved_problems sp 
       JOIN users u ON sp.user_id = u.id 
       ORDER BY sp.id DESC
@@ -136,6 +137,46 @@ app.get("/api/community/users", async (req, res) => {
     console.error(err);
     res.status(500).json({ error: "Server error" });
   }
+});
+
+app.get("/api/proxy-programmers", (req, res) => {
+  const { url } = req.query;
+  if (!url || !url.startsWith("https://school.programmers.co.kr/")) {
+    return res.status(400).json({ error: "Invalid URL" });
+  }
+  
+  https.get(url, (response) => {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      return res.status(response.statusCode).json({ error: "Failed to fetch from Programmers" });
+    }
+    
+    let html = '';
+    response.on('data', (chunk) => {
+      html += chunk;
+    });
+    
+    response.on('end', () => {
+      const titleMatch = html.match(/<title>코딩테스트 연습 - (.*?) \| 프로그래머스 스쿨<\/title>/) 
+        || html.match(/<meta\s+property="og:title"\s+content="코딩테스트 연습 - (.*?)"/)
+        || html.match(/<title>코딩테스트 연습 - (.*?)</);
+        
+      let title = "Unknown Problem";
+      if (titleMatch && titleMatch[1]) {
+        title = titleMatch[1].trim();
+      }
+      
+      res.json({
+        title,
+        url,
+        difficulty: null,
+        tags: [],
+        platform: "Programmers"
+      });
+    });
+  }).on('error', (err) => {
+    console.error("Programmers proxy error:", err);
+    res.status(500).json({ error: "Failed to fetch problem" });
+  });
 });
 
 // Serve frontend in production (if running locally or as a standard node app)

@@ -108,7 +108,7 @@ export default function CommunityPage() {
                 className="bg-card p-4 rounded-xl border-3 border-[var(--line)] shadow-[3px_3px_0_var(--line)] flex flex-col gap-2 transition-transform hover:-translate-y-1"
               >
                 <a 
-                  href={`https://leetcode.com/problems/${prob.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/`} 
+                  href={prob.url || `https://leetcode.com/problems/${prob.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/`} 
                   target="_blank" 
                   rel="noopener noreferrer" 
                   className="font-black text-lg hover:underline inline-block"

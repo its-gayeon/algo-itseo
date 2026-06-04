@@ -7,6 +7,12 @@ const DIFFICULTY_COLOR = {
   Easy: "text-[#5dd39e]",
   Medium: "text-[#ffd55a]",
   Hard: "text-[#e06557]",
+  "Level 0": "text-[#a5b4fc]",
+  "Level 1": "text-[#818cf8]",
+  "Level 2": "text-[#6366f1]",
+  "Level 3": "text-[#4f46e5]",
+  "Level 4": "text-[#4338ca]",
+  "Level 5": "text-[#3730a3]",
 };
 
 const CONFIDENCE = [
@@ -19,9 +25,14 @@ const MISTAKE_TYPES = [
   "Logic Flaw", "Edge Case", "Time Limit", "Memory Limit", "Syntax", "Misread", "Forgot Pattern"
 ];
 
-function slugFromUrl(url) {
-  const m = url.match(/leetcode\.com\/problems\/([^/?#]+)/);
-  return m ? m[1] : null;
+function getPlatformInfo(url) {
+  if (url.includes("leetcode.com/problems/")) {
+    const m = url.match(/leetcode\.com\/problems\/([^/?#]+)/);
+    return m ? { platform: "LeetCode", slug: m[1] } : null;
+  } else if (url.includes("school.programmers.co.kr/")) {
+    return { platform: "Programmers", url };
+  }
+  return null;
 }
 
 async function fetchProblem(slug) {
@@ -48,20 +59,31 @@ export default function LogPage({ token }) {
   const [selectedMistakes, setSelectedMistakes] = useState([]);
   const [selectedPendingTags, setSelectedPendingTags] = useState([]);
   const [logs, setLogs] = useState(() => getLogs());
+  const [programmersLevel, setProgrammersLevel] = useState(null);
 
   async function handleFetch(e) {
     e.preventDefault();
-    const slug = slugFromUrl(url.trim());
-    if (!slug) { setErrorMsg("Paste a valid LeetCode problem URL."); setStatus("error"); return; }
+    const cleanUrl = url.trim();
+    const info = getPlatformInfo(cleanUrl);
+    if (!info) { setErrorMsg("Paste a valid LeetCode or Programmers URL."); setStatus("error"); return; }
     setStatus("loading");
     setErrorMsg("");
     try {
-      const problem = await fetchProblem(slug);
+      let problem;
+      if (info.platform === "LeetCode") {
+        problem = await fetchProblem(info.slug);
+        problem.platform = "LeetCode";
+      } else {
+        const res = await fetch(`/api/proxy-programmers?url=${encodeURIComponent(info.url)}`);
+        if (!res.ok) throw new Error("Not found");
+        problem = await res.json();
+      }
       setPending(problem);
       setConfidence(null);
       setNotes("");
       setSelectedMistakes([]);
       setSelectedPendingTags([]);
+      setProgrammersLevel(null);
       setStatus("confirming");
     } catch {
       setErrorMsg("Couldn't fetch problem. Check the URL and try again.");
@@ -71,8 +93,11 @@ export default function LogPage({ token }) {
 
   async function handleLog() {
     if (!confidence) return;
+    if (pending.platform === "Programmers" && !programmersLevel) return;
+    
+    const finalDifficulty = pending.platform === "Programmers" ? programmersLevel : pending.difficulty;
     const axes = [...new Set(selectedPendingTags.map(t => TAG_TO_AXIS[t]).filter(Boolean))];
-    const updated = addLog({ ...pending, confidence, notes, mistakeTags: selectedMistakes, mainThemes: axes, selectedTags: selectedPendingTags });
+    const updated = addLog({ ...pending, difficulty: finalDifficulty, confidence, notes, mistakeTags: selectedMistakes, mainThemes: axes, selectedTags: selectedPendingTags });
     setLogs(updated);
 
     if (token) {
@@ -85,7 +110,8 @@ export default function LogPage({ token }) {
           },
           body: JSON.stringify({
             title: pending.title,
-            difficulty: pending.difficulty,
+            difficulty: finalDifficulty,
+            url: pending.url,
             date: new Date().toISOString().slice(0, 10)
           })
         });
@@ -99,6 +125,7 @@ export default function LogPage({ token }) {
     setNotes("");
     setSelectedMistakes([]);
     setSelectedPendingTags([]);
+    setProgrammersLevel(null);
     setUrl("");
     setStatus(null);
   }
@@ -109,6 +136,7 @@ export default function LogPage({ token }) {
     setNotes("");
     setSelectedMistakes([]);
     setSelectedPendingTags([]);
+    setProgrammersLevel(null);
     setStatus(null);
   }
 
@@ -144,13 +172,13 @@ export default function LogPage({ token }) {
 
       {status !== "confirming" && (
         <form onSubmit={handleFetch} className="border-3 border-[var(--line)] rounded-[18px] bg-card shadow-[5px_5px_0_var(--line)] p-4 flex flex-col gap-3">
-          <label className="text-[0.76rem] font-black uppercase text-[var(--berry-dark,#df3e66)]">LeetCode Problem URL</label>
+          <label className="text-[0.76rem] font-black uppercase text-[var(--berry-dark,#df3e66)]">LeetCode / Programmers URL</label>
           <div className="flex gap-2 flex-wrap">
             <input
               type="url"
               value={url}
               onChange={e => setUrl(e.target.value)}
-              placeholder="https://leetcode.com/problems/two-sum/"
+              placeholder="https://leetcode.com/problems/... or https://school.programmers.co.kr/..."
               required
               className="flex-1 min-w-0 border-2 border-[var(--line)] rounded-xl text-foreground bg-background px-3 py-2"
             />
@@ -172,7 +200,20 @@ export default function LogPage({ token }) {
             <p className="text-[0.76rem] font-black uppercase text-[var(--berry-dark,#df3e66)]">How did it go?</p>
             <h3 className="font-black text-xl">{pending.title}</h3>
             <div className="flex gap-2 items-center mt-1 flex-wrap">
-              <span className={`font-black text-sm ${DIFFICULTY_COLOR[pending.difficulty] ?? ""}`}>{pending.difficulty}</span>
+              {pending.platform === "Programmers" ? (
+                <select
+                  value={programmersLevel || ""}
+                  onChange={e => setProgrammersLevel(e.target.value)}
+                  className={`font-black text-sm outline-none bg-transparent cursor-pointer border-b-2 border-dashed border-[var(--border)] pb-0.5 ${programmersLevel ? DIFFICULTY_COLOR[programmersLevel] : "text-muted-foreground"}`}
+                >
+                  <option value="" disabled>Select Level</option>
+                  {[0, 1, 2, 3, 4, 5].map(lvl => (
+                    <option key={lvl} value={`Level ${lvl}`}>Level {lvl}</option>
+                  ))}
+                </select>
+              ) : (
+                <span className={`font-black text-sm ${DIFFICULTY_COLOR[pending.difficulty] ?? ""}`}>{pending.difficulty}</span>
+              )}
               {pending.tags.map(t => (
                 <span key={t} className="text-[0.72rem] font-bold px-2 py-0.5 rounded-full bg-muted border border-[var(--border)]">{t}</span>
               ))}
@@ -198,7 +239,7 @@ export default function LogPage({ token }) {
 
           <div className="flex flex-col gap-2">
             <label className="text-[0.76rem] font-black uppercase text-muted-foreground mt-2">Topics (Select up to 2)</label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
               {pending.tags.map(t => {
                 const active = selectedPendingTags.includes(t);
                 const maxed = !active && selectedPendingTags.length >= 2;
@@ -221,6 +262,26 @@ export default function LogPage({ token }) {
                   </button>
                 );
               })}
+              
+              <select
+                value=""
+                onChange={(e) => {
+                  const newTag = e.target.value;
+                  if (!newTag || pending.tags.includes(newTag)) return;
+                  setPending(prev => ({ ...prev, tags: [...prev.tags, newTag] }));
+                  if (selectedPendingTags.length < 2) {
+                    setSelectedPendingTags(prev => [...prev, newTag]);
+                  }
+                }}
+                className="text-[0.72rem] font-bold py-1 px-3 appearance-none rounded-full border-2 border-dashed border-[var(--border)] bg-transparent text-muted-foreground hover:border-[var(--line)] hover:text-foreground cursor-pointer outline-none"
+              >
+                <option value="" disabled>+ Add Topic</option>
+                {Object.keys(TAG_TO_AXIS)
+                  .filter(t => !pending.tags.includes(t))
+                  .sort()
+                  .map(t => <option key={t} value={t}>{t}</option>)
+                }
+              </select>
             </div>
           </div>
 

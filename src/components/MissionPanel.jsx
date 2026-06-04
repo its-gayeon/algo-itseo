@@ -32,7 +32,7 @@ export default function MissionPanel({
               {reviewLogs.map(log => (
                 <div key={log.id} className="flex flex-col border-2 border-[var(--line)] rounded-xl bg-muted/30 text-foreground p-2 px-3 shadow-[2px_2px_0_var(--line)]">
                   <div className="flex justify-between items-start gap-2">
-                    <a href={`https://leetcode.com/problems/${log.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/`} target="_blank" rel="noopener noreferrer" className="font-black hover:underline text-sm truncate">{log.title}</a>
+                    <a href={log.url || `https://leetcode.com/problems/${log.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/`} target="_blank" rel="noopener noreferrer" className="font-black hover:underline text-sm truncate">{log.title}</a>
                     <span className="text-[0.65rem] font-bold opacity-70 whitespace-nowrap">{log.date.slice(0, 10)}</span>
                   </div>
                   {log.mistakeTags && log.mistakeTags.length > 0 && (
