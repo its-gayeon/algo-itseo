@@ -1,0 +1,176 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --background: #fdfdfc;
+  --foreground: #282315;
+  --card: #ffffff;
+  --card-foreground: #282315;
+  --primary: #ffd55a;
+  --primary-foreground: #0a0a0a;
+  --secondary: #bd9c4a;
+  --secondary-foreground: #0a0a0a;
+  --muted: #f7f6f2;
+  --muted-foreground: #847a62;
+  --accent: #e06557;
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
+  --border: #ebe8e0;
+  --input: #ebe8e0;
+  --ring: #ffd24d;
+
+  /* legacy tokens used by sprite CSS */
+  --ink: #282315;
+  --line: #282315;
+  --muted-text: #847a62;
+  --cream: #fff3c7;
+  --spark: #ffd55a;
+  --leaf: #5dd39e;
+  --leaf-dark: #24a06d;
+  --berry: #ff6f8f;
+  --berry-dark: #df3e66;
+}
+
+.dark {
+  --background: #1a1914;
+  --foreground: #f6f5f4;
+  --card: #27241b;
+  --card-foreground: #f6f5f4;
+  --primary: #ffd65c;
+  --primary-foreground: #0a0a0a;
+  --secondary: #c2a456;
+  --secondary-foreground: #0a0a0a;
+  --muted: #373225;
+  --muted-foreground: #b3ac98;
+  --accent: #e06557;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --border: #433e2d;
+  --input: #433e2d;
+  --ring: #ffd65c;
+
+  --ink: #f6f5f4;
+  --line: #f6f5f4;
+  --cream: #373225;
+  --spark: #ffd65c;
+}
+
+/* ── Companion sprite (cannot be expressed in Tailwind utilities) ── */
+
+.companion {
+  --size: 1;
+  position: relative;
+  z-index: 2;
+  width: calc(164px * var(--size));
+  height: calc(210px * var(--size));
+  transform-origin: 50% 100%;
+  animation: idle 2.8s ease-in-out infinite;
+}
+
+.stage-one   { --size: 0.84; --body: #cdb7ff; --body-dark: #9b80d8; --accent-c: #eee5ff; }
+.stage-two   { --size: 0.94; --body: #d4bfff; --body-dark: #a58be1; --accent-c: #eee5ff; }
+.stage-three { --size: 1.06; --body: #decaff; --body-dark: #af95e8; --accent-c: #eee5ff; }
+.stage-final { --size: 1.16; --body: #e6d2ff; --body-dark: #b99cef; --accent-c: #eee5ff; }
+
+.head, .body, .ear, .tail, .belly, .eye, .cheek, .mouth {
+  position: absolute;
+  display: block;
+}
+
+.head {
+  width: 104px; height: 78px; left: 30px; top: 50px;
+  border: 4px solid var(--line); border-radius: 48% 52% 42% 46%;
+  background: var(--body); box-shadow: inset -8px -8px 0 var(--body-dark); z-index: 3;
+}
+.body {
+  width: 156px; height: 132px; left: 4px; bottom: 24px;
+  border: 4px solid var(--line); border-radius: 46% 52% 36% 42%;
+  background: var(--body); box-shadow: inset -13px -12px 0 var(--body-dark); z-index: 2;
+}
+.belly {
+  width: 58px; height: 54px; left: 30px; top: 44px;
+  border: 3px solid var(--line); border-radius: 50%; background: #fff7dc;
+}
+.ear {
+  width: 42px; height: 68px; top: 0;
+  border: 4px solid var(--line); background: var(--body); z-index: 1;
+}
+.ear-left  { left: 22px;  border-radius: 70% 36% 50% 44%; transform: rotate(-24deg); }
+.ear-right { right: 22px; border-radius: 36% 70% 44% 50%; transform: rotate(24deg); }
+.tail {
+  width: 70px; height: 34px; right: -16px; bottom: 56px;
+  border: 4px solid var(--line); border-radius: 999px; background: var(--accent-c);
+  transform: rotate(-24deg); transform-origin: left center; z-index: 1;
+}
+.eye { width: 14px; height: 20px; top: 34px; border-radius: 999px; background: var(--line); }
+.eye-left  { left: 28px; }
+.eye-right { right: 28px; }
+.eye::after {
+  content: ""; position: absolute; width: 5px; height: 5px;
+  top: 3px; left: 3px; border-radius: 50%; background: #fff;
+}
+.cheek { width: 18px; height: 10px; top: 61px; border-radius: 999px; background: rgba(255,111,143,0.68); }
+.cheek-left  { left: 16px; }
+.cheek-right { right: 16px; }
+.mouth {
+  width: 22px; height: 12px; left: 41px; top: 62px;
+  border-bottom: 4px solid var(--line); border-radius: 0 0 999px 999px;
+}
+
+/* Ditto overrides */
+.ditto .ear, .ditto .tail, .ditto .belly, .ditto .cheek { display: none; }
+.ditto .head {
+  width: 126px; height: 52px; left: 28px; top: 54px;
+  border: 0; background: transparent; box-shadow: none; z-index: 4;
+}
+.ditto .body {
+  width: 178px; height: 132px; left: -7px; bottom: 28px;
+  border: 4px solid #514560; border-radius: 35% 40% 33% 38% / 42% 42% 45% 44%;
+  background: var(--body);
+  box-shadow: inset -9px -8px 0 rgba(93,72,132,0.28), inset 5px 5px 0 rgba(255,255,255,0.42);
+  transform: rotate(-1deg); overflow: visible;
+}
+.ditto .body::before, .ditto .body::after {
+  content: ""; position: absolute;
+  border: 4px solid #514560; background: var(--body);
+  box-shadow: inset 4px 4px 0 rgba(255,255,255,0.32); z-index: -1;
+}
+.ditto .body::before {
+  width: 46px; height: 60px; left: 12px; top: -20px;
+  border-right: 0; border-bottom: 0; border-radius: 72% 24% 0 20%; transform: rotate(-20deg);
+}
+.ditto .body::after {
+  width: 56px; height: 54px; right: -8px; top: 28px;
+  border-left: 0; border-radius: 34% 66% 44% 42%; transform: rotate(10deg); z-index: 3;
+}
+.ditto .eye { width: 5px; height: 5px; top: 15px; border-radius: 999px; background: #1f1b25; }
+.ditto .eye::after { display: none; }
+.ditto .eye-left  { left: 40px; }
+.ditto .eye-right { right: 40px; }
+.ditto .mouth {
+  width: 46px; height: 5px; left: 40px; top: 28px;
+  border: 0; border-bottom: 3px solid #1f1b25; border-radius: 0;
+}
+
+@keyframes idle {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50%       { transform: translateY(-8px) rotate(1deg); }
+}

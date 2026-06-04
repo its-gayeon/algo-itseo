@@ -1,0 +1,381 @@
+import { useState } from "react";
+import { FaceConfident, FaceLost, FaceNeutral } from "../components/ConfidenceFaces.jsx";
+import { addLog, deleteLog, getLogs, updateLog } from "../utils/storage.js";
+import { TAG_TO_AXIS } from "../utils/stats.js";
+
+const DIFFICULTY_COLOR = {
+  Easy: "text-[#5dd39e]",
+  Medium: "text-[#ffd55a]",
+  Hard: "text-[#e06557]",
+};
+
+const CONFIDENCE = [
+  { value: 1, label: "Lost", Face: FaceLost },
+  { value: 2, label: "Getting there", Face: FaceNeutral },
+  { value: 3, label: "Confident", Face: FaceConfident },
+];
+
+const MISTAKE_TYPES = [
+  "Logic Flaw", "Edge Case", "Time Limit", "Memory Limit", "Syntax", "Misread", "Forgot Pattern"
+];
+
+function slugFromUrl(url) {
+  const m = url.match(/leetcode\.com\/problems\/([^/?#]+)/);
+  return m ? m[1] : null;
+}
+
+async function fetchProblem(slug) {
+  const res = await fetch(`https://alfa-leetcode-api.onrender.com/select?titleSlug=${slug}`);
+  if (!res.ok) throw new Error("Not found");
+  const q = await res.json();
+  if (!q.questionTitle) throw new Error("Problem not found");
+  return {
+    title: q.questionTitle,
+    difficulty: q.difficulty,
+    tags: (q.topicTags || []).map(t => t.name),
+    slug,
+    url: `https://leetcode.com/problems/${slug}/`,
+  };
+}
+
+export default function LogPage({ token }) {
+  const [url, setUrl] = useState("");
+  const [status, setStatus] = useState(null);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [pending, setPending] = useState(null);
+  const [confidence, setConfidence] = useState(null);
+  const [notes, setNotes] = useState("");
+  const [selectedMistakes, setSelectedMistakes] = useState([]);
+  const [selectedPendingTags, setSelectedPendingTags] = useState([]);
+  const [logs, setLogs] = useState(() => getLogs());
+
+  async function handleFetch(e) {
+    e.preventDefault();
+    const slug = slugFromUrl(url.trim());
+    if (!slug) { setErrorMsg("Paste a valid LeetCode problem URL."); setStatus("error"); return; }
+    setStatus("loading");
+    setErrorMsg("");
+    try {
+      const problem = await fetchProblem(slug);
+      setPending(problem);
+      setConfidence(null);
+      setNotes("");
+      setSelectedMistakes([]);
+      setSelectedPendingTags([]);
+      setStatus("confirming");
+    } catch {
+      setErrorMsg("Couldn't fetch problem. Check the URL and try again.");
+      setStatus("error");
+    }
+  }
+
+  async function handleLog() {
+    if (!confidence) return;
+    const axes = [...new Set(selectedPendingTags.map(t => TAG_TO_AXIS[t]).filter(Boolean))];
+    const updated = addLog({ ...pending, confidence, notes, mistakeTags: selectedMistakes, mainThemes: axes, selectedTags: selectedPendingTags });
+    setLogs(updated);
+
+    if (token) {
+      try {
+        await fetch("/api/solved", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            title: pending.title,
+            difficulty: pending.difficulty,
+            date: new Date().toISOString().slice(0, 10)
+          })
+        });
+      } catch (err) {
+        console.error("Failed to share solved problem:", err);
+      }
+    }
+
+    setPending(null);
+    setConfidence(null);
+    setNotes("");
+    setSelectedMistakes([]);
+    setSelectedPendingTags([]);
+    setUrl("");
+    setStatus(null);
+  }
+
+  function handleCancel() {
+    setPending(null);
+    setConfidence(null);
+    setNotes("");
+    setSelectedMistakes([]);
+    setSelectedPendingTags([]);
+    setStatus(null);
+  }
+
+  const [confirmId, setConfirmId] = useState(null);
+
+  async function handleDelete(id) {
+    const entry = logs.find(l => l.id === id);
+    setLogs(deleteLog(id));
+    setConfirmId(null);
+
+    if (token && entry) {
+      try {
+        await fetch("/api/solved", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            title: entry.title,
+            date: entry.date.slice(0, 10)
+          })
+        });
+      } catch (err) {
+        console.error("Failed to delete problem from community:", err);
+      }
+    }
+  }
+
+  return (
+    <div className="grid gap-[14px]">
+      <h2 className="text-[clamp(1.8rem,4vw,3rem)] font-black leading-[0.95]">Log</h2>
+
+      {status !== "confirming" && (
+        <form onSubmit={handleFetch} className="border-3 border-[var(--line)] rounded-[18px] bg-card shadow-[5px_5px_0_var(--line)] p-4 flex flex-col gap-3">
+          <label className="text-[0.76rem] font-black uppercase text-[var(--berry-dark,#df3e66)]">LeetCode Problem URL</label>
+          <div className="flex gap-2 flex-wrap">
+            <input
+              type="url"
+              value={url}
+              onChange={e => setUrl(e.target.value)}
+              placeholder="https://leetcode.com/problems/two-sum/"
+              required
+              className="flex-1 min-w-0 border-2 border-[var(--line)] rounded-xl text-foreground bg-background px-3 py-2"
+            />
+            <button
+              type="submit"
+              disabled={status === "loading"}
+              className="border-3 border-[var(--line)] rounded-[14px] bg-primary text-primary-foreground text-[0.82rem] font-black px-[14px] py-2.5 shadow-[3px_3px_0_var(--line)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[1px_1px_0_var(--line)] transition-[transform,box-shadow] duration-[140ms] whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {status === "loading" ? "Fetching…" : "Fetch Problem"}
+            </button>
+          </div>
+          {status === "error" && <p className="text-[var(--accent)] text-sm font-semibold">{errorMsg}</p>}
+        </form>
+      )}
+
+      {status === "confirming" && pending && (
+        <div className="border-3 border-[var(--line)] rounded-[18px] bg-card shadow-[5px_5px_0_var(--line)] p-5 flex flex-col gap-4">
+          <div>
+            <p className="text-[0.76rem] font-black uppercase text-[var(--berry-dark,#df3e66)]">How did it go?</p>
+            <h3 className="font-black text-xl">{pending.title}</h3>
+            <div className="flex gap-2 items-center mt-1 flex-wrap">
+              <span className={`font-black text-sm ${DIFFICULTY_COLOR[pending.difficulty] ?? ""}`}>{pending.difficulty}</span>
+              {pending.tags.map(t => (
+                <span key={t} className="text-[0.72rem] font-bold px-2 py-0.5 rounded-full bg-muted border border-[var(--border)]">{t}</span>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-4 justify-center">
+            {CONFIDENCE.map(({ value, label, Face }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setConfidence(value)}
+                className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-3 transition-all duration-150
+                  ${confidence === value
+                    ? "border-[var(--line)] shadow-[3px_3px_0_var(--line)] scale-105 bg-primary"
+                    : "border-transparent hover:border-[var(--border)] bg-muted"}`}
+              >
+                <Face size={56} />
+                <span className="text-[0.72rem] font-black">{label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-[0.76rem] font-black uppercase text-muted-foreground mt-2">Topics (Select up to 2)</label>
+            <div className="flex flex-wrap gap-2">
+              {pending.tags.map(t => {
+                const active = selectedPendingTags.includes(t);
+                const maxed = !active && selectedPendingTags.length >= 2;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    disabled={maxed}
+                    onClick={() => {
+                      if (active) setSelectedPendingTags(selectedPendingTags.filter(x => x !== t));
+                      else setSelectedPendingTags([...selectedPendingTags, t]);
+                    }}
+                    className={`text-[0.72rem] font-bold px-2 py-1 rounded-full border-2 transition-all duration-150
+                      ${active
+                        ? "border-[var(--line)] bg-primary text-primary-foreground shadow-[2px_2px_0_var(--line)]"
+                        : "border-[var(--border)] bg-background text-muted-foreground hover:border-[var(--line)]"}
+                      ${maxed ? "opacity-30 cursor-not-allowed" : ""}`}
+                  >
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-[0.76rem] font-black uppercase text-muted-foreground mt-2">Any Mistakes?</label>
+            <div className="flex flex-wrap gap-2">
+              {MISTAKE_TYPES.map(m => {
+                const active = selectedMistakes.includes(m);
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => {
+                      if (active) setSelectedMistakes(selectedMistakes.filter(x => x !== m));
+                      else setSelectedMistakes([...selectedMistakes, m]);
+                    }}
+                    className={`text-[0.72rem] font-bold px-2 py-1 rounded-full border-2 transition-all duration-150
+                      ${active
+                        ? "border-[var(--accent)] bg-background text-[var(--accent)] shadow-[2px_2px_0_var(--accent)]"
+                        : "border-[var(--border)] bg-background text-muted-foreground hover:border-[var(--line)]"}`}
+                  >
+                    {m}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-[0.76rem] font-black uppercase text-muted-foreground">Post-Mortem Notes</label>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Why did you get it wrong? What's the trick?"
+              className="border-2 border-[var(--line)] rounded-xl text-sm bg-background px-3 py-2 min-h-[80px] resize-y"
+            />
+          </div>
+
+          <div className="flex gap-2 justify-end">
+            <button onClick={handleCancel} className="border-3 border-[var(--line)] rounded-[14px] bg-card text-foreground text-[0.82rem] font-black px-[14px] py-2.5 shadow-[3px_3px_0_var(--line)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[1px_1px_0_var(--line)] transition-[transform,box-shadow] duration-[140mg]">
+              Cancel
+            </button>
+            <button
+              onClick={handleLog}
+              disabled={!confidence}
+              className="border-3 border-[var(--line)] rounded-[14px] bg-[var(--leaf,#5dd39e)] text-foreground text-[0.82rem] font-black px-[14px] py-2.5 shadow-[3px_3px_0_var(--line)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[1px_1px_0_var(--line)] transition-[transform,box-shadow] duration-[140ms] disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Save Log
+            </button>
+          </div>
+        </div>
+      )}
+
+      {logs.length === 0 ? (
+        <p className="text-muted-foreground text-center py-10">No problems logged yet.</p>
+      ) : (
+        <div className="grid gap-3">
+          {logs.map(entry => {
+            const conf = CONFIDENCE.find(c => c.value === entry.confidence);
+            return (
+              <article key={entry.id} className="border-3 border-[var(--line)] rounded-[18px] bg-card shadow-[5px_5px_0_var(--line)] p-4 flex flex-col gap-3">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div className="flex flex-col gap-1">
+                    <a href={entry.url} target="_blank" rel="noopener noreferrer" className="font-black text-lg hover:underline">
+                      {entry.title}
+                    </a>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {entry.tags.map(tag => {
+                        const selectedTags = entry.selectedTags ?? [];
+                        const active = selectedTags.includes(tag);
+                        const maxed = !active && selectedTags.length >= 2;
+                        return (
+                          <button key={tag} type="button"
+                            disabled={maxed}
+                            onClick={() => {
+                              const next = active
+                                ? selectedTags.filter(t => t !== tag)
+                                : [...selectedTags, tag];
+                              const axes = [...new Set(next.map(t => TAG_TO_AXIS[t]).filter(Boolean))];
+                              setLogs(updateLog(entry.id, { selectedTags: next, mainThemes: axes }));
+                            }}
+                            className={`text-[0.72rem] font-bold px-2 py-0.5 rounded-full border-2 transition-all duration-150
+                              ${active
+                                ? "border-[var(--line)] bg-primary text-primary-foreground shadow-[2px_2px_0_var(--line)]"
+                                : "border-[var(--border)] bg-muted text-muted-foreground"}
+                              ${maxed ? "opacity-30 cursor-not-allowed" : "hover:border-[var(--line)] cursor-pointer"}`}>
+                            {tag}
+                          </button>
+                        );
+                      })}
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const newTag = e.target.value;
+                          const currentTags = entry.tags || [];
+                          if (!newTag || currentTags.includes(newTag)) return;
+                          setLogs(updateLog(entry.id, { tags: [...currentTags, newTag] }));
+                        }}
+                        className="text-[0.8rem] font-bold w-8 text-center py-0.5 px-0 appearance-none rounded-full border-2 border-dashed border-[var(--border)] bg-transparent text-muted-foreground hover:border-[var(--line)] hover:text-foreground cursor-pointer outline-none"
+                      >
+                        <option value="" disabled>+</option>
+                        {Object.keys(TAG_TO_AXIS)
+                          .filter(t => !(entry.tags || []).includes(t))
+                          .sort()
+                          .map(t => <option key={t} value={t}>{t}</option>)
+                        }
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    <button onClick={() => setConfirmId(entry.id)} className="text-muted-foreground hover:text-[var(--accent)] text-xs font-black transition-colors" aria-label="Delete">✕</button>
+                    <span className={`font-black text-sm ${DIFFICULTY_COLOR[entry.difficulty] ?? ""}`}>{entry.difficulty}</span>
+                    {conf && <conf.Face size={32} />}
+                    <span className="text-muted-foreground text-xs">{new Date(entry.date).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                
+                {(entry.mistakeTags?.length > 0 || entry.notes) && (
+                  <div className="mt-2 p-3 bg-muted rounded-xl border border-[var(--border)] flex flex-col gap-2">
+                    {entry.mistakeTags?.length > 0 && (
+                      <div className="flex gap-1.5 flex-wrap">
+                        {entry.mistakeTags.map(m => (
+                          <span key={m} className="text-[0.65rem] font-bold px-2 py-0.5 rounded text-[var(--accent)] border border-[var(--accent)] bg-background">
+                            {m}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {entry.notes && (
+                      <p className="text-sm font-medium whitespace-pre-wrap">{entry.notes}</p>
+                    )}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {confirmId !== null && (
+        <div className="fixed inset-0 bg-[rgba(0,0,0,0.4)] flex items-center justify-center z-50" onClick={() => setConfirmId(null)}>
+          <div className="border-3 border-[var(--line)] rounded-[18px] bg-card shadow-[8px_8px_0_var(--line)] p-6 flex flex-col gap-4 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="font-black text-lg">Delete this log?</h3>
+            <p className="text-muted-foreground text-sm">This can't be undone.</p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setConfirmId(null)} className="border-3 border-[var(--line)] rounded-[14px] bg-card text-foreground text-[0.82rem] font-black px-[14px] py-2 shadow-[3px_3px_0_var(--line)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[1px_1px_0_var(--line)] transition-[transform,box-shadow] duration-[140ms]">
+                Cancel
+              </button>
+              <button onClick={() => handleDelete(confirmId)} className="border-3 border-[var(--line)] rounded-[14px] bg-destructive text-white text-[0.82rem] font-black px-[14px] py-2 shadow-[3px_3px_0_var(--line)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[1px_1px_0_var(--line)] transition-[transform,box-shadow] duration-[140ms]">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
