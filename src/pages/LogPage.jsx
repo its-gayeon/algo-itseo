@@ -49,6 +49,90 @@ async function fetchProblem(slug) {
   };
 }
 
+function highlightCode(code, lang) {
+  const keywords = /\b(const|let|var|function|return|if|else|for|while|do|break|continue|switch|case|default|class|import|export|from|as|new|this|typeof|instanceof|in|of|try|catch|finally|throw|async|await|def|elif|lambda|with|assert|pass|global|nonlocal|and|or|not|is|self|public|private|protected|static|final|void|int|float|double|char|boolean|byte|short|long|struct|impl|fn|let|mut|pub|use|mod|type|struct|enum|trait|where|match|nil|true|false|null|undefined)\b/g;
+
+  const tokenRegex = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/|#(?!include)[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b\d+(?:\.\d+)?\b|\b[a-zA-Z_]\w*\b|[^\w\s])/g;
+
+  const tokens = code.split(tokenRegex);
+  return tokens.map((token, index) => {
+    if (!token) return null;
+
+    if (token.startsWith("//") || token.startsWith("/*") || (token.startsWith("#") && (lang === "python" || lang === "py" || lang === "python3"))) {
+      return <span key={index} className="text-muted-foreground/60 italic">{token}</span>;
+    }
+    if ((token.startsWith('"') && token.endsWith('"')) || 
+        (token.startsWith("'") && token.endsWith("'")) || 
+        (token.startsWith("`") && token.endsWith("`"))) {
+      return <span key={index} className="text-[#5dd39e]">{token}</span>;
+    }
+    if (/^\d+(?:\.\d+)?$/.test(token)) {
+      return <span key={index} className="text-[#ffd55a]">{token}</span>;
+    }
+    keywords.lastIndex = 0;
+    if (keywords.test(token)) {
+      return <span key={index} className="text-[#e06557] font-extrabold">{token}</span>;
+    }
+    if (/^[+\-*/%=!&|^~<>?:;.,()[\]{}]$/.test(token)) {
+      return <span key={index} className="text-[#818cf8] font-bold">{token}</span>;
+    }
+    
+    return token;
+  });
+}
+
+function renderMarkdown(text) {
+  if (!text) return null;
+  const parts = text.split(/(```[\s\S]*?```)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith("```") && part.endsWith("```")) {
+      const content = part.slice(3, -3);
+      const firstNewline = content.indexOf("\n");
+      let lang = "";
+      let code = content;
+      if (firstNewline !== -1) {
+        const potentialLang = content.substring(0, firstNewline).trim();
+        if (potentialLang && potentialLang.length < 15 && !potentialLang.includes(" ")) {
+          lang = potentialLang;
+          code = content.substring(firstNewline + 1);
+        }
+      }
+      return (
+        <pre key={index} className="bg-background/90 border-2 border-[var(--line)] rounded-lg p-3 my-2 overflow-x-auto text-[0.8rem] font-mono leading-relaxed text-foreground shadow-[2px_2px_0_var(--line)]">
+          {lang && <div className="text-[0.6rem] font-black uppercase text-muted-foreground mb-1.5 border-b border-[var(--border)] pb-0.5">{lang}</div>}
+          <code>{highlightCode(code.trim(), lang?.toLowerCase())}</code>
+        </pre>
+      );
+    } else {
+      const inlineParts = part.split(/(`[^`\n]+`)/g);
+      return (
+        <span key={index}>
+          {inlineParts.map((subPart, subIndex) => {
+            if (subPart.startsWith("`") && subPart.endsWith("`")) {
+              return (
+                <code key={subIndex} className="bg-background/80 border border-[var(--border)] rounded px-1.5 py-0.5 mx-0.5 font-mono text-[0.8rem] text-[var(--accent)] font-semibold">
+                  {subPart.slice(1, -1)}
+                </code>
+              );
+            }
+            const boldParts = subPart.split(/(\*\*[^*]+\*\*)/g);
+            return (
+              <span key={subIndex}>
+                {boldParts.map((bPart, bIndex) => {
+                  if (bPart.startsWith("**") && bPart.endsWith("**")) {
+                    return <strong key={bIndex} className="font-extrabold">{bPart.slice(2, -2)}</strong>;
+                  }
+                  return bPart;
+                })}
+              </span>
+            );
+          })}
+        </span>
+      );
+    }
+  });
+}
+
 export default function LogPage({ token }) {
   const [url, setUrl] = useState("");
   const [status, setStatus] = useState(null);
@@ -485,7 +569,7 @@ export default function LogPage({ token }) {
                         </button>
                       </div>
                       {entry.notes && (
-                        <p className="text-sm font-medium whitespace-pre-wrap">{entry.notes}</p>
+                        <div className="text-sm font-medium whitespace-pre-wrap">{renderMarkdown(entry.notes)}</div>
                       )}
                     </div>
                   ) : (
