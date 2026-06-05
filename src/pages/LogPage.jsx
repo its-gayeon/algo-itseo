@@ -60,6 +60,15 @@ export default function LogPage({ token }) {
   const [selectedPendingTags, setSelectedPendingTags] = useState([]);
   const [logs, setLogs] = useState(() => getLogs());
   const [programmersLevel, setProgrammersLevel] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editNotes, setEditNotes] = useState("");
+  const [editMistakes, setEditMistakes] = useState([]);
+
+  function handleSaveEdit(id) {
+    const updated = updateLog(id, { notes: editNotes, mistakeTags: editMistakes });
+    setLogs(updated);
+    setEditingId(null);
+  }
 
   async function handleFetch(e) {
     e.preventDefault();
@@ -399,21 +408,98 @@ export default function LogPage({ token }) {
                   </div>
                 </div>
                 
-                {(entry.mistakeTags?.length > 0 || entry.notes) && (
-                  <div className="mt-2 p-3 bg-muted rounded-xl border border-[var(--border)] flex flex-col gap-2">
-                    {entry.mistakeTags?.length > 0 && (
-                      <div className="flex gap-1.5 flex-wrap">
-                        {entry.mistakeTags.map(m => (
-                          <span key={m} className="text-[0.65rem] font-bold px-2 py-0.5 rounded text-[var(--accent)] border border-[var(--accent)] bg-background">
-                            {m}
-                          </span>
-                        ))}
+                {editingId === entry.id ? (
+                  <div className="mt-2 p-3 bg-muted rounded-xl border-2 border-[var(--line)] flex flex-col gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[0.65rem] font-black uppercase text-muted-foreground">Any Mistakes?</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {MISTAKE_TYPES.map(m => {
+                          const active = editMistakes.includes(m);
+                          return (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => {
+                                if (active) setEditMistakes(editMistakes.filter(x => x !== m));
+                                else setEditMistakes([...editMistakes, m]);
+                              }}
+                              className={`text-[0.65rem] font-bold px-2 py-0.5 rounded-full border-2 transition-all duration-150
+                                ${active
+                                  ? "border-[var(--accent)] bg-background text-[var(--accent)] shadow-[1.5px_1.5px_0_var(--accent)]"
+                                  : "border-[var(--border)] bg-background text-muted-foreground hover:border-[var(--line)]"}`}
+                            >
+                              {m}
+                            </button>
+                          );
+                        })}
                       </div>
-                    )}
-                    {entry.notes && (
-                      <p className="text-sm font-medium whitespace-pre-wrap">{entry.notes}</p>
-                    )}
+                    </div>
+                    
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[0.65rem] font-black uppercase text-muted-foreground">Post-Mortem Notes</label>
+                      <textarea
+                        value={editNotes}
+                        onChange={e => setEditNotes(e.target.value)}
+                        placeholder="Why did you get it wrong? What's the trick?"
+                        className="border-2 border-[var(--line)] rounded-xl text-xs bg-background px-3 py-1.5 min-h-[60px] resize-y"
+                      />
+                    </div>
+                    
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="border-2 border-[var(--line)] rounded-lg bg-card text-foreground text-[0.7rem] font-black px-2.5 py-1 shadow-[1.5px_1.5px_0_var(--line)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[0.5px_0.5px_0_var(--line)] transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleSaveEdit(entry.id)}
+                        className="border-2 border-[var(--line)] rounded-lg bg-[var(--leaf,#5dd39e)] text-foreground text-[0.7rem] font-black px-2.5 py-1 shadow-[1.5px_1.5px_0_var(--line)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[0.5px_0.5px_0_var(--line)] transition-all"
+                      >
+                        Save
+                      </button>
+                    </div>
                   </div>
+                ) : (
+                  (entry.mistakeTags?.length > 0 || entry.notes) ? (
+                    <div className="mt-2 p-3 bg-muted rounded-xl border border-[var(--border)] flex flex-col gap-2">
+                      <div className="flex justify-between items-start gap-4">
+                        {entry.mistakeTags?.length > 0 ? (
+                          <div className="flex gap-1.5 flex-wrap">
+                            {entry.mistakeTags.map(m => (
+                              <span key={m} className="text-[0.65rem] font-bold px-2 py-0.5 rounded text-[var(--accent)] border border-[var(--accent)] bg-background">
+                                {m}
+                              </span>
+                            ))}
+                          </div>
+                        ) : <div />}
+                        <button
+                          onClick={() => {
+                            setEditingId(entry.id);
+                            setEditNotes(entry.notes || "");
+                            setEditMistakes(entry.mistakeTags || []);
+                          }}
+                          className="text-xs font-bold text-muted-foreground hover:text-foreground hover:underline transition-all cursor-pointer whitespace-nowrap"
+                        >
+                          Edit Note
+                        </button>
+                      </div>
+                      {entry.notes && (
+                        <p className="text-sm font-medium whitespace-pre-wrap">{entry.notes}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setEditingId(entry.id);
+                        setEditNotes("");
+                        setEditMistakes([]);
+                      }}
+                      className="mt-1 self-start text-xs font-bold text-muted-foreground hover:text-foreground flex items-center gap-1 hover:underline cursor-pointer"
+                    >
+                      + Add Note/Mistake
+                    </button>
+                  )
                 )}
               </article>
             );
